@@ -1,17 +1,44 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, FlatList, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, FlatList, Dimensions, Platform, TextInput, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { getWeather, setForecastDays, setCity, getSuggestions, clearSuggestions } from '../redux/slices/weatherSlice';
-import { Search, MapPin, Wind, Droplets, Thermometer, Calendar, X } from 'lucide-react-native';
+import { toggleFavorite } from '../redux/slices/favoritesSlice';
+import { Search, MapPin, Wind, Droplets, Thermometer, Calendar, X, Heart, List } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Gradients } from '../theme/colors';
+import * as Location from 'expo-location';
 
 const { width } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
     const dispatch = useDispatch();
     const { current, forecast, loading, error, city, forecastDays, suggestions } = useSelector((state) => state.weather);
+    const { cities: favoriteCities } = useSelector((state) => state.favorites);
     const [searchInput, setSearchInput] = useState('');
+    const [locationPermission, setLocationPermission] = useState(null);
+
+    // Request location permission and get current location on app load
+    useEffect(() => {
+        (async () => {
+            try {
+                let { status } = await Location.requestForegroundPermissionsAsync();
+                setLocationPermission(status === 'granted');
+
+                if (status === 'granted') {
+                    let location = await Location.getCurrentPositionAsync({});
+                    const { latitude, longitude } = location.coords;
+
+                    // Fetch weather using coordinates
+                    dispatch(setCity(`${latitude},${longitude}`));
+                } else {
+                    // If permission denied, use default city
+                    console.log('Location permission denied, using default city');
+                }
+            } catch (error) {
+                console.error('Error getting location:', error);
+            }
+        })();
+    }, []);
 
     useEffect(() => {
         dispatch(getWeather({ city, days: forecastDays }));
@@ -34,6 +61,16 @@ const HomeScreen = ({ navigation }) => {
             dispatch(setCity(query));
             setSearchInput('');
             dispatch(clearSuggestions());
+        }
+    };
+
+    const isFavorite = (cityName) => {
+        return favoriteCities.some(c => c.toLowerCase() === cityName?.toLowerCase());
+    };
+
+    const handleToggleFavorite = () => {
+        if (current) {
+            dispatch(toggleFavorite(current.name));
         }
     };
 
@@ -93,125 +130,129 @@ const HomeScreen = ({ navigation }) => {
     );
 
     if (loading) return (
-        <LinearGradient colors={Gradients.main} style={styles.center}>
-            <Text style={{ color: Colors.text, fontSize: 18 }}>Loading Aura...</Text>
-        </LinearGradient>
+        <View style={styles.center}><Text>Loading...</Text></View>
     );
 
     if (error) return (
-        <LinearGradient colors={Gradients.main} style={styles.center}>
-            <Text style={styles.errorText}>Error: {error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => dispatch(getWeather({ city, days: forecastDays }))}>
-                <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
-        </LinearGradient>
+        <View style={styles.center}><Text>Error: {error}</Text></View>
     );
 
     return (
         <View style={styles.container}>
             <LinearGradient colors={Gradients.main} style={StyleSheet.absoluteFill} />
             <SafeAreaView style={styles.safeArea}>
-                <View style={styles.searchBarWrapper}>
-                    <View style={styles.searchInputContainer}>
-                        <Search color="rgba(255, 255, 255, 0.5)" size={20} style={styles.searchIcon} />
+                <View style={[styles.searchBarWrapper, { flexDirection: 'row', alignItems: 'center' }]}>
+                    <View style={[styles.searchInputContainer, { flex: 1 }]}>
+                        <Search color={Colors.text} size={20} style={styles.searchIcon} />
                         <TextInput
                             style={styles.searchInput}
-                            placeholder="Search your city..."
-                            placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                            placeholder="Search city..."
+                            placeholderTextColor="rgba(255, 255, 255, 0.5)"
                             value={searchInput}
                             onChangeText={setSearchInput}
                             onSubmitEditing={() => handleSearch()}
                         />
                         {searchInput.length > 0 && (
-                            <TouchableOpacity onPress={() => setSearchInput('')}>
-                                <X color="rgba(255, 255, 255, 0.5)" size={20} />
+                            <TouchableOpacity onPress={() => { setSearchInput(''); dispatch(clearSuggestions()); }}>
+                                <X color={Colors.text} size={20} />
                             </TouchableOpacity>
                         )}
                     </View>
+                    <TouchableOpacity
+                        style={styles.favoritesLinkButton}
+                        onPress={() => navigation.navigate('Favorites')}
+                    >
+                        <List color={Colors.text} size={24} />
+                    </TouchableOpacity>
+
                     {suggestions.length > 0 && (
                         <View style={styles.suggestionsContainer}>
-                            {suggestions.map((item) => (
-                                <TouchableOpacity key={item} style={styles.suggestionItem} onPress={() => handleSearch(item)}>
+                            {suggestions.map((suggestion, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={styles.suggestionItem}
+                                    onPress={() => handleSearch(suggestion)}
+                                >
                                     <MapPin color={Colors.accent} size={16} />
-                                    <Text style={styles.suggestionText}>{item}</Text>
+                                    <Text style={styles.suggestionText}>{suggestion}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
                     )}
                 </View>
 
-                {loading && !current ? (
-                    <View style={styles.center}>
-                        <Text style={{ color: Colors.text, fontSize: 18 }}>Predicting Weather...</Text>
-                    </View>
-                ) : (
-                    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                        <View style={styles.header}>
-                            {current && (
-                                <>
-                                    <View style={styles.locationHeader}>
-                                        <MapPin color={Colors.accent} size={18} />
-                                        <Text style={styles.cityText}>{city}</Text>
-                                    </View>
-                                    <View style={styles.mainTempContainer}>
-                                        <Text style={styles.tempText}>{Math.round(current.main.temp)}</Text>
-                                        <Text style={styles.degreeSymbol}>°</Text>
-                                    </View>
-                                    <Text style={styles.descText}>{current.weather[0].description}</Text>
-
-                                    <View style={styles.statsRow}>
-                                        <View style={styles.statBox}>
-                                            <Wind color={Colors.accent} size={20} />
-                                            <Text style={styles.statValue}>{current.wind?.speed} m/s</Text>
-                                            <Text style={styles.statLabel}>Wind</Text>
-                                        </View>
-                                        <View style={styles.statBox}>
-                                            <Droplets color={Colors.accent} size={20} />
-                                            <Text style={styles.statValue}>{current.main.humidity}%</Text>
-                                            <Text style={styles.statLabel}>Humidity</Text>
-                                        </View>
-                                        <View style={styles.statBox}>
-                                            <Thermometer color={Colors.accent} size={20} />
-                                            <Text style={styles.statValue}>{Math.round(current.main.feels_like)}°</Text>
-                                            <Text style={styles.statLabel}>Feels</Text>
-                                        </View>
-                                    </View>
-                                </>
-                            )}
-                        </View>
-
-                        <View style={styles.forecastHeader}>
-                            <View style={styles.titleRow}>
-                                <Calendar color={Colors.accent} size={20} />
-                                <Text style={styles.sectionTitle}> {forecastDays}-Day Forecast</Text>
+                <ScrollView contentContainerStyle={styles.scrollContent}>
+                    {current && (
+                        <>
+                            <View style={styles.locationHeader}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                                    <MapPin color={Colors.accent} size={20} />
+                                    <Text style={styles.cityText}>{current.name}</Text>
+                                </View>
+                                <TouchableOpacity onPress={handleToggleFavorite} style={styles.favoriteButton}>
+                                    <Heart
+                                        color={isFavorite(current.name) ? "#ff4d4d" : Colors.text}
+                                        fill={isFavorite(current.name) ? "#ff4d4d" : "transparent"}
+                                        size={24}
+                                    />
+                                </TouchableOpacity>
                             </View>
-                            <View style={styles.daysToggle}>
-                                {[3, 5, 7].map((num) => (
-                                    <TouchableOpacity
-                                        key={num}
-                                        style={[styles.dayButton, forecastDays === num && styles.activeDayButton]}
-                                        onPress={() => dispatch(setForecastDays(num))}
-                                    >
-                                        <Text style={[styles.dayButtonText, forecastDays === num && styles.activeDayButtonText]}>{num}d</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
 
-                        {dailyForecast.length > 0 && (
-                            <View style={styles.forecastSection}>
-                                <FlatList
-                                    data={dailyForecast}
-                                    renderItem={renderForecastItem}
-                                    keyExtractor={(item) => item.dt.toString()}
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={styles.forecastList}
-                                />
+                            <View style={styles.mainTempContainer}>
+                                <Text style={styles.tempText}>{Math.round(current.main.temp)}</Text>
+                                <Text style={styles.degreeSymbol}>°C</Text>
                             </View>
-                        )}
-                    </ScrollView>
-                )}
+                            <Text style={styles.descText}>{current.weather[0].description}</Text>
+
+                            <View style={styles.statsRow}>
+                                <View style={styles.statBox}>
+                                    <Wind color={Colors.accent} size={24} />
+                                    <Text style={styles.statValue}>{current.wind?.speed || 0} m/s</Text>
+                                    <Text style={styles.statLabel}>Wind</Text>
+                                </View>
+                                <View style={styles.statBox}>
+                                    <Droplets color={Colors.accent} size={24} />
+                                    <Text style={styles.statValue}>{current.main.humidity}%</Text>
+                                    <Text style={styles.statLabel}>Humidity</Text>
+                                </View>
+                                <View style={styles.statBox}>
+                                    <Thermometer color={Colors.accent} size={24} />
+                                    <Text style={styles.statValue}>{Math.round(current.main.feels_like || current.main.temp)}°</Text>
+                                    <Text style={styles.statLabel}>Feels Like</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.forecastHeader}>
+                                <View style={styles.titleRow}>
+                                    <Calendar color={Colors.accent} size={20} />
+                                    <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>{forecastDays}-Day Forecast</Text>
+                                </View>
+                                <View style={styles.daysToggle}>
+                                    {[3, 5, 7].map((days) => (
+                                        <TouchableOpacity
+                                            key={days}
+                                            style={[styles.dayButton, forecastDays === days && styles.activeDayButton]}
+                                            onPress={() => dispatch(setForecastDays(days))}
+                                        >
+                                            <Text style={[styles.dayButtonText, forecastDays === days && styles.activeDayButtonText]}>
+                                                {days}D
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <FlatList
+                                horizontal
+                                data={dailyForecast}
+                                renderItem={renderForecastItem}
+                                keyExtractor={(item, index) => index.toString()}
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.forecastList}
+                            />
+                        </>
+                    )}
+                </ScrollView>
             </SafeAreaView>
         </View>
     );
@@ -255,16 +296,28 @@ const styles = StyleSheet.create({
         top: 60,
         left: 20,
         right: 20,
-        backgroundColor: Colors.background,
+        backgroundColor: '#1e1e2e', // Solid background for visibility
         borderRadius: 15,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: 'rgba(255, 255, 255, 0.2)',
         overflow: 'hidden',
-        elevation: 10,
+        zIndex: 1000, // Very high zIndex for web/mobile
+        elevation: 1000,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.5,
-        shadowRadius: 10,
+        shadowRadius: 20,
+    },
+    favoritesLinkButton: {
+        marginLeft: 15,
+        backgroundColor: 'rgba(255, 255, 255, 0.15)', // Slightly brighter
+        padding: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    favoriteButton: {
+        padding: 5,
     },
     suggestionItem: {
         flexDirection: 'row',

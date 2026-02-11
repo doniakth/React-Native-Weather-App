@@ -7,8 +7,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createStackNavigator } from '@react-navigation/stack';
 import { store, persistor } from './src/redux/store';
+
 import HomeScreen from './src/screens/HomeScreen';
 import DetailScreen from './src/screens/DetailScreen';
+import FavoritesScreen from './src/screens/FavoritesScreen';
 
 const Stack = createStackNavigator();
 
@@ -29,6 +31,7 @@ export default function App() {
               >
                 <Stack.Screen name="Home" component={HomeScreen} />
                 <Stack.Screen name="Details" component={DetailScreen} />
+                <Stack.Screen name="Favorites" component={FavoritesScreen} />
               </Stack.Navigator>
             </NavigationContainer>
           </View>
