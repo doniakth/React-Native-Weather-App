@@ -75,23 +75,15 @@ const HomeScreen = ({ navigation }) => {
     };
 
     const processForecastData = (list) => {
-        const dailyData = {};
-        list.forEach((item) => {
-            const date = new Date(item.dt * 1000).toLocaleDateString();
-            if (!dailyData[date]) {
-                dailyData[date] = {
-                    dt: item.dt,
-                    temp_max: item.main.temp_max,
-                    temp_min: item.main.temp_min,
-                    description: item.weather[0].main,
-                    humidity: item.main.humidity,
-                };
-            } else {
-                dailyData[date].temp_max = Math.max(dailyData[date].temp_max, item.main.temp_max);
-                dailyData[date].temp_min = Math.min(dailyData[date].temp_min, item.main.temp_min);
-            }
-        });
-        return Object.values(dailyData).slice(0, forecastDays);
+        // Open-Meteo returns one entry per day already — map directly
+        return list.slice(0, forecastDays).map((item) => ({
+            dt: item.dt,
+            temp_max: item.main.temp_max,
+            temp_min: item.main.temp_min,
+            description: item.weather[0].main,
+            humidity: item.main.humidity,
+            wind: item.wind,
+        }));
     };
 
     const dailyForecast = forecast ? processForecastData(forecast.list) : [];
@@ -112,7 +104,7 @@ const HomeScreen = ({ navigation }) => {
                         main: item.description,
                         description: item.description
                     }],
-                    wind: { speed: 5 }
+                    wind: item.wind || { speed: 0 }
                 }
             })}
         >
@@ -207,7 +199,7 @@ const HomeScreen = ({ navigation }) => {
                             <View style={styles.statsRow}>
                                 <View style={styles.statBox}>
                                     <Wind color={Colors.accent} size={24} />
-                                    <Text style={styles.statValue}>{current.wind?.speed || 0} m/s</Text>
+                                    <Text style={styles.statValue}>{parseFloat((current.wind?.speed || 0).toFixed(1))} m/s</Text>
                                     <Text style={styles.statLabel}>Wind</Text>
                                 </View>
                                 <View style={styles.statBox}>

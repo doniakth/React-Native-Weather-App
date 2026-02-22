@@ -44,7 +44,7 @@ const DetailScreen = ({ route, navigation }) => {
                     <View style={styles.grid}>
                         <View style={styles.card}>
                             <Wind color={Colors.accent} size={24} />
-                            <Text style={styles.cardValue}>{forecastData.wind.speed} m/s</Text>
+                            <Text style={styles.cardValue}>{parseFloat(forecastData.wind.speed.toFixed(1))} m/s</Text>
                             <Text style={styles.cardLabel}>Wind Speed</Text>
                         </View>
                         <View style={styles.card}>

@@ -7,7 +7,8 @@ describe('weatherSlice', () => {
         loading: false,
         error: null,
         city: 'New Delhi',
-        forecastDays: 7,
+        forecastDays: 3,
+        suggestions: [],
     };
 
     it('should return the initial state', () => {
